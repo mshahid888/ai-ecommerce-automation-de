@@ -11,6 +11,10 @@ crashes on a missing shop configuration.
 ``woocommerce`` → ``WooCommerceAdapter`` (real REST API). When
 ``woocommerce`` is selected but ``WOOCOMMERCE_*`` is not configured,
 the factory logs a German warning and falls back to ``demo``.
+``etsy`` → ``EtsyAdapter`` (real Open API v3);
+``ebay`` → ``EbayAdapter`` (real Sell APIs). When a real backend
+is selected but not configured, the factory logs a German warning
+and falls back to ``demo``.
 Unknown values fall back to ``demo``.
 """
 
@@ -18,6 +22,8 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+
+log = logging.getLogger(__name__)
 from typing import TYPE_CHECKING
 
 log = logging.getLogger(__name__)
@@ -28,6 +34,8 @@ from .base import (
     StoreIntegration,
 )
 from .demo import DemoStoreAdapter
+from .ebay import EbayAdapter
+from .etsy import EtsyAdapter
 from .shopify import ShopifyAdapter
 from .shopify_simulated import SimulatedShopifyAdapter
 from .woocommerce import WooCommerceAdapter
@@ -38,6 +46,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 __all__ = [
     "DemoStoreAdapter",
+    "EbayAdapter",
+    "EtsyAdapter",
     "IntegrationConfigError",
     "IntegrationError",
     "ShopifyAdapter",
@@ -68,6 +78,17 @@ def get_store_integration(
                 exc,
             )
             return DemoStoreAdapter(conn, store_id)
+    if backend == "etsy":
+        try:
+            return EtsyAdapter(settings, store_id)
+        except IntegrationConfigError as exc:
+            # "not configured": report honestly, keep serving via demo.
+            log.warning(
+                "Etsy-Backend nicht konfiguriert (%s) — falle auf "
+                "Demo-Backend zurück.",
+                exc,
+            )
+            return DemoStoreAdapter(conn, store_id)
     if backend == "woocommerce":
         try:
             return WooCommerceAdapter(settings, store_id)
@@ -75,6 +96,17 @@ def get_store_integration(
             # "not configured": report honestly, keep serving via demo.
             log.warning(
                 "WooCommerce-Backend nicht konfiguriert (%s) — falle auf "
+                "Demo-Backend zurück.",
+                exc,
+            )
+            return DemoStoreAdapter(conn, store_id)
+    if backend == "ebay":
+        try:
+            return EbayAdapter(settings, store_id)
+        except IntegrationConfigError as exc:
+            # "not configured": report honestly, keep serving via demo.
+            log.warning(
+                "eBay-Backend nicht konfiguriert (%s) — falle auf "
                 "Demo-Backend zurück.",
                 exc,
             )

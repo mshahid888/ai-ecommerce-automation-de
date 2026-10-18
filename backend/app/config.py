@@ -106,7 +106,7 @@ class Settings:
         raw_backend = (_env("STORE_BACKEND", "demo") or "demo").strip().lower()
         self.store_backend: str = (
             raw_backend
-            if raw_backend in {"demo", "shopify_simulated", "shopify", "woocommerce"}
+            if raw_backend in {"demo", "shopify_simulated", "shopify", "woocommerce", "etsy", "ebay"}
             else "demo"
         )
         # Shopify (real Admin API adapter — needs a custom app + token).
@@ -140,6 +140,20 @@ class Settings:
         self.shopify_webhook_secret: str | None = _env(
             "SHOPIFY_WEBHOOK_SECRET", None
         )
+        # Etsy (Open API v3 — real adapter needs API key + shop ID;
+        # receipts additionally need an OAuth token).
+        # Server-side ONLY; never frontend, never committed.
+        self.etsy_api_key: str | None = _env("ETSY_API_KEY", None)
+        self.etsy_shop_id: str | None = _env("ETSY_SHOP_ID", None)
+        self.etsy_oauth_token: str | None = _env("ETSY_OAUTH_TOKEN", None)
+        # eBay (Sell APIs — client-credentials flow or ready OAuth token).
+        # Server-side ONLY; never frontend, never committed.
+        self.ebay_client_id: str | None = _env("EBAY_CLIENT_ID", None)
+        self.ebay_client_secret: str | None = _env("EBAY_CLIENT_SECRET", None)
+        self.ebay_marketplace_id: str = (
+            _env("EBAY_MARKETPLACE_ID", "EBAY_DE") or "EBAY_DE"
+        )
+        self.ebay_oauth_token: str | None = _env("EBAY_OAUTH_TOKEN", None)
         raw_origins = _env(
             "CORS_ORIGINS",
             "http://localhost:3000,http://127.0.0.1:3000",
