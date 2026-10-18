@@ -100,21 +100,25 @@ class Settings:
         # "demo" (default) → SQLite demo store via DemoStoreAdapter;
         # "shopify_simulated" → SAME demo data, Shopify-shaped payloads
         # via SimulatedShopifyAdapter. Unknown values fall back to "demo".
-        # The real ShopifyAdapter is NOT selectable here: it is only
-        # constructed explicitly when SHOPIFY_* env vars are set.
+        # "shopify" → real Shopify Admin API via ShopifyAdapter. Fehlt
+        # die Shopify-Konfiguration, fällt die Factory still auf "demo"
+        # zurück (s. integrations/__init__.py).
         raw_backend = (_env("STORE_BACKEND", "demo") or "demo").strip().lower()
         self.store_backend: str = (
             raw_backend
-            if raw_backend in {"demo", "shopify_simulated"}
+            if raw_backend in {"demo", "shopify_simulated", "shopify"}
             else "demo"
         )
-        # Shopify (Phase 9 skeleton — SIMULATED until a dev store exists).
+        # Shopify (real Admin API adapter — needs a custom app + token).
         # Server-side ONLY; never frontend, never committed.
         self.shopify_shop_domain: str | None = _env(
             "SHOPIFY_SHOP_DOMAIN", None
         )
-        self.shopify_admin_api_token: str | None = _env(
-            "SHOPIFY_ADMIN_API_TOKEN", None
+        # Primary: SHOPIFY_ADMIN_TOKEN; legacy SHOPIFY_ADMIN_API_TOKEN
+        # is still accepted for backward compatibility.
+        self.shopify_admin_api_token: str | None = (
+            _env("SHOPIFY_ADMIN_TOKEN", None)
+            or _env("SHOPIFY_ADMIN_API_TOKEN", None)
         )
         self.shopify_api_version: str = (
             _env("SHOPIFY_API_VERSION", "2026-10") or "2026-10"
