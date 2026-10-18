@@ -3,8 +3,12 @@
 ``get_store_integration()`` is the single place that decides which
 ``StoreIntegration`` the pipeline uses. ``STORE_BACKEND`` (env):
 ``demo`` (default) → ``DemoStoreAdapter``;
-``shopify_simulated`` → ``SimulatedShopifyAdapter``. Unknown values
-fall back to ``demo``.
+``shopify_simulated`` → ``SimulatedShopifyAdapter``;
+``etsy`` → ``EtsyAdapter`` (real Open API v3);
+``ebay`` → ``EbayAdapter`` (real Sell APIs).
+When a real backend is selected but not configured, the factory logs a
+German warning and falls back to ``demo`` — the pipeline never crashes
+on a missing shop configuration. Unknown values fall back to ``demo``.
 
 ``ShopifyAdapter`` (real Admin API skeleton) is NOT selectable here —
 it is constructed explicitly, in code, only when a dev store exists.
@@ -12,7 +16,10 @@ it is constructed explicitly, in code, only when a dev store exists.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
+
+log = logging.getLogger(__name__)
 from typing import TYPE_CHECKING
 
 from .base import (
@@ -21,6 +28,8 @@ from .base import (
     StoreIntegration,
 )
 from .demo import DemoStoreAdapter
+from .ebay import EbayAdapter
+from .etsy import EtsyAdapter
 from .shopify import ShopifyAdapter
 from .shopify_simulated import SimulatedShopifyAdapter
 from .webhooks import record_webhook_event, verify_webhook_hmac
@@ -30,6 +39,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 __all__ = [
     "DemoStoreAdapter",
+    "EbayAdapter",
+    "EtsyAdapter",
     "IntegrationConfigError",
     "IntegrationError",
     "ShopifyAdapter",
@@ -48,5 +59,27 @@ def get_store_integration(
     backend = (settings.store_backend or "demo").strip().lower()
     if backend == "shopify_simulated":
         return SimulatedShopifyAdapter(conn, store_id)
+    if backend == "etsy":
+        try:
+            return EtsyAdapter(settings, store_id)
+        except IntegrationConfigError as exc:
+            # "not configured": report honestly, keep serving via demo.
+            log.warning(
+                "Etsy-Backend nicht konfiguriert (%s) — falle auf "
+                "Demo-Backend zurück.",
+                exc,
+            )
+            return DemoStoreAdapter(conn, store_id)
+    if backend == "ebay":
+        try:
+            return EbayAdapter(settings, store_id)
+        except IntegrationConfigError as exc:
+            # "not configured": report honestly, keep serving via demo.
+            log.warning(
+                "eBay-Backend nicht konfiguriert (%s) — falle auf "
+                "Demo-Backend zurück.",
+                exc,
+            )
+            return DemoStoreAdapter(conn, store_id)
     # "demo" default; unknown values fall back to demo (never crash prod).
     return DemoStoreAdapter(conn, store_id)
