@@ -105,7 +105,7 @@ class Settings:
         raw_backend = (_env("STORE_BACKEND", "demo") or "demo").strip().lower()
         self.store_backend: str = (
             raw_backend
-            if raw_backend in {"demo", "shopify_simulated"}
+            if raw_backend in {"demo", "shopify_simulated", "woocommerce"}
             else "demo"
         )
         # Shopify (Phase 9 skeleton — SIMULATED until a dev store exists).
@@ -118,6 +118,20 @@ class Settings:
         )
         self.shopify_api_version: str = (
             _env("SHOPIFY_API_VERSION", "2026-10") or "2026-10"
+        )
+        # WooCommerce (real REST API adapter — needs REST API keys).
+        # Server-side ONLY; never frontend, never committed.
+        self.woocommerce_shop_url: str | None = _env(
+            "WOOCOMMERCE_SHOP_URL", None
+        )
+        self.woocommerce_consumer_key: str | None = _env(
+            "WOOCOMMERCE_CONSUMER_KEY", None
+        )
+        self.woocommerce_consumer_secret: str | None = _env(
+            "WOOCOMMERCE_CONSUMER_SECRET", None
+        )
+        self.woocommerce_webhook_secret: str | None = _env(
+            "WOOCOMMERCE_WEBHOOK_SECRET", None
         )
         self.shopify_webhook_secret: str | None = _env(
             "SHOPIFY_WEBHOOK_SECRET", None

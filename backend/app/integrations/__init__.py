@@ -3,7 +3,8 @@
 ``get_store_integration()`` is the single place that decides which
 ``StoreIntegration`` the pipeline uses. ``STORE_BACKEND`` (env):
 ``demo`` (default) → ``DemoStoreAdapter``;
-``shopify_simulated`` → ``SimulatedShopifyAdapter``. Unknown values
+``shopify_simulated`` → ``SimulatedShopifyAdapter``;
+``woocommerce`` → ``WooCommerceAdapter`` (real REST API). Unknown values
 fall back to ``demo``.
 
 ``ShopifyAdapter`` (real Admin API skeleton) is NOT selectable here —
@@ -12,8 +13,11 @@ it is constructed explicitly, in code, only when a dev store exists.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from typing import TYPE_CHECKING
+
+log = logging.getLogger(__name__)
 
 from .base import (
     IntegrationConfigError,
@@ -23,6 +27,7 @@ from .base import (
 from .demo import DemoStoreAdapter
 from .shopify import ShopifyAdapter
 from .shopify_simulated import SimulatedShopifyAdapter
+from .woocommerce import WooCommerceAdapter
 from .webhooks import record_webhook_event, verify_webhook_hmac
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -34,6 +39,7 @@ __all__ = [
     "IntegrationError",
     "ShopifyAdapter",
     "SimulatedShopifyAdapter",
+    "WooCommerceAdapter",
     "StoreIntegration",
     "get_store_integration",
     "record_webhook_event",
@@ -48,5 +54,16 @@ def get_store_integration(
     backend = (settings.store_backend or "demo").strip().lower()
     if backend == "shopify_simulated":
         return SimulatedShopifyAdapter(conn, store_id)
+    if backend == "woocommerce":
+        try:
+            return WooCommerceAdapter(settings, store_id)
+        except IntegrationConfigError as exc:
+            # "not configured": report honestly, keep serving via demo.
+            log.warning(
+                "WooCommerce-Backend nicht konfiguriert (%s) — falle auf "
+                "Demo-Backend zurück.",
+                exc,
+            )
+            return DemoStoreAdapter(conn, store_id)
     # "demo" default; unknown values fall back to demo (never crash prod).
     return DemoStoreAdapter(conn, store_id)
