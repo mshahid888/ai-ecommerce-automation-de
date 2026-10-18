@@ -1,22 +1,26 @@
 """POST /api/integrations/shopify/webhooks — Shopify webhook receiver.
 
-SIMULATED until a Shopify dev store exists: ``SHOPIFY_WEBHOOK_SECRET``
-is unset, so the endpoint honestly returns 503 ("shopify_not_configured")
-instead of pretending to process webhooks. When the secret IS
-configured, the endpoint:
+``SHOPIFY_WEBHOOK_SECRET`` unset → the endpoint honestly returns 503
+("shopify_not_configured") instead of pretending to process webhooks.
+When the secret IS configured, the endpoint:
 
 1. verifies ``X-Shopify-Hmac-Sha256`` against the raw body (401 on failure),
 2. dedupes on ``X-Shopify-Webhook-Id`` (duplicate → 200, no reprocessing),
-3. records the delivery in ``shopify_webhook_events`` + one ``audit_log`` row,
-4. returns 200.
+3. parses the JSON payload defensively (malformed bodies never crash the
+   endpoint — they are acknowledged and audit-logged),
+4. handles the known topics ``orders/create``, ``orders/updated`` and
+   ``refunds/create`` (order reference extracted for the audit log);
+   unknown topics are recorded as unhandled but still acknowledged,
+5. records the delivery in ``shopify_webhook_events`` + one ``audit_log`` row,
+6. returns 200.
 
-Even then it only RECORDS deliveries — no business action (no order
-creation, no refunds) is taken automatically. Real processing against a
-dev store is Phase 9b work (see docs/SHOPIFY.md).
+Deliveries are only RECORDED — no business action (no order creation,
+no refunds) is taken automatically. See docs/SHOPIFY-ADAPTER.md.
 """
 
 from __future__ import annotations
 
+import json
 import sqlite3
 
 from fastapi import APIRouter, Depends, Request
@@ -92,6 +96,8 @@ async def shopify_webhook(
         db.commit()
         return {"status": "duplicate", "simulated": True}
 
+    payload = _safe_json_payload(raw_body)
+    topic_info = _topic_detail(topic, payload)
     log_audit(
         db,
         action="shopify_webhook_received",
@@ -100,7 +106,44 @@ async def shopify_webhook(
             "webhook_id": webhook_id,
             "topic": topic,
             "shop_domain": shop_domain,
+            **topic_info,
         },
     )
     db.commit()
     return {"status": "received", "simulated": True}
+
+
+#: Webhook topics this endpoint understands. Anything else is recorded
+#: as unhandled but still acknowledged with 200 (Shopify retries
+#: non-2xx deliveries; retrying an unknown topic never helps).
+KNOWN_WEBHOOK_TOPICS = frozenset(
+    {"orders/create", "orders/updated", "refunds/create"}
+)
+
+
+def _safe_json_payload(raw_body: bytes) -> dict | None:
+    """Parse the webhook body defensively: malformed JSON returns None
+    instead of raising — the endpoint must never crash on it."""
+    try:
+        payload = json.loads(raw_body or b"{}")
+    except (ValueError, TypeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _topic_detail(topic: str | None, payload: dict | None) -> dict:
+    """Extract audit-friendly detail for a webhook topic.
+
+    Known topics yield the merchant-facing order reference when the
+    payload carries one; unknown topics (or unparseable payloads) are
+    marked as unhandled — recorded, never processed, never fatal.
+    """
+    if payload is None:
+        return {"handled": False, "note": "unparseable_payload"}
+    if topic not in KNOWN_WEBHOOK_TOPICS:
+        return {"handled": False, "note": "unhandled_topic"}
+    order_ref = payload.get("name") or payload.get("order_name")
+    if order_ref is None:
+        order_id = payload.get("order_id") or payload.get("id")
+        order_ref = f"id:{order_id}" if order_id is not None else None
+    return {"handled": True, "order_ref": order_ref}
