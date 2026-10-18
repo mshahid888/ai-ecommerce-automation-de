@@ -7,8 +7,11 @@
 ``shopify`` → ``ShopifyAdapter`` (real Admin API). When ``shopify``
 is selected but ``SHOPIFY_*`` is not configured, the factory logs a
 German warning and falls back to ``demo`` — the pipeline never
-crashes on a missing shop configuration. Unknown values fall back to
-``demo``.
+crashes on a missing shop configuration.
+``woocommerce`` → ``WooCommerceAdapter`` (real REST API). When
+``woocommerce`` is selected but ``WOOCOMMERCE_*`` is not configured,
+the factory logs a German warning and falls back to ``demo``.
+Unknown values fall back to ``demo``.
 """
 
 from __future__ import annotations
@@ -27,6 +30,7 @@ from .base import (
 from .demo import DemoStoreAdapter
 from .shopify import ShopifyAdapter
 from .shopify_simulated import SimulatedShopifyAdapter
+from .woocommerce import WooCommerceAdapter
 from .webhooks import record_webhook_event, verify_webhook_hmac
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -38,6 +42,7 @@ __all__ = [
     "IntegrationError",
     "ShopifyAdapter",
     "SimulatedShopifyAdapter",
+    "WooCommerceAdapter",
     "StoreIntegration",
     "get_store_integration",
     "record_webhook_event",
@@ -59,6 +64,17 @@ def get_store_integration(
             # "not configured": report honestly, keep serving via demo.
             log.warning(
                 "Shopify-Backend nicht konfiguriert (%s) — falle auf "
+                "Demo-Backend zurück.",
+                exc,
+            )
+            return DemoStoreAdapter(conn, store_id)
+    if backend == "woocommerce":
+        try:
+            return WooCommerceAdapter(settings, store_id)
+        except IntegrationConfigError as exc:
+            # "not configured": report honestly, keep serving via demo.
+            log.warning(
+                "WooCommerce-Backend nicht konfiguriert (%s) — falle auf "
                 "Demo-Backend zurück.",
                 exc,
             )
