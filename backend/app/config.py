@@ -106,8 +106,33 @@ class Settings:
         raw_backend = (_env("STORE_BACKEND", "demo") or "demo").strip().lower()
         self.store_backend: str = (
             raw_backend
-            if raw_backend in {"demo", "shopify_simulated", "shopify", "woocommerce", "etsy", "ebay"}
+            if raw_backend in {"demo", "shopify_simulated", "shopify", "woocommerce", "etsy", "ebay", "tiktok_shop"}
             else "demo"
+        )
+        # TikTok Shop Open Platform (real adapter — needs Partner Center
+        # app + OAuth token). Server-side ONLY; never frontend, never
+        # committed.
+        self.tiktok_shop_app_key: str | None = _env(
+            "TIKTOK_SHOP_APP_KEY", None
+        )
+        self.tiktok_shop_app_secret: str | None = _env(
+            "TIKTOK_SHOP_APP_SECRET", None
+        )
+        self.tiktok_shop_access_token: str | None = _env(
+            "TIKTOK_SHOP_ACCESS_TOKEN", None
+        )
+        self.tiktok_shop_shop_id: str | None = _env(
+            "TIKTOK_SHOP_SHOP_ID", None
+        )
+        self.tiktok_shop_base_url: str = (
+            _env(
+                "TIKTOK_SHOP_BASE_URL",
+                "https://open-api.tiktokglobalshop.com",
+            )
+            or "https://open-api.tiktokglobalshop.com"
+        )
+        self.tiktok_shop_webhook_secret: str | None = _env(
+            "TIKTOK_SHOP_WEBHOOK_SECRET", None
         )
         # Shopify (real Admin API adapter — needs a custom app + token).
         # Server-side ONLY; never frontend, never committed.

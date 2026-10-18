@@ -38,8 +38,16 @@ from .ebay import EbayAdapter
 from .etsy import EtsyAdapter
 from .shopify import ShopifyAdapter
 from .shopify_simulated import SimulatedShopifyAdapter
+from .tiktok_shop import TikTokShopAdapter
 from .woocommerce import WooCommerceAdapter
-from .webhooks import record_webhook_event, verify_webhook_hmac
+from .webhooks import (
+    record_tiktok_shop_webhook_event,
+    record_webhook_event,
+    record_woocommerce_webhook_event,
+    verify_tiktok_shop_webhook,
+    verify_webhook_hmac,
+    verify_woocommerce_webhook_signature,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..config import Settings
@@ -54,10 +62,15 @@ __all__ = [
     "SimulatedShopifyAdapter",
     "WooCommerceAdapter",
     "StoreIntegration",
+    "TikTokShopAdapter",
     "get_store_integration",
+    "record_tiktok_shop_webhook_event",
     "record_webhook_event",
+    "verify_tiktok_shop_webhook",
     "verify_webhook_hmac",
 ]
+
+log = logging.getLogger(__name__)
 
 
 def get_store_integration(
@@ -108,6 +121,17 @@ def get_store_integration(
             log.warning(
                 "eBay-Backend nicht konfiguriert (%s) — falle auf "
                 "Demo-Backend zurück.",
+                exc,
+            )
+            return DemoStoreAdapter(conn, store_id)
+    if backend == "tiktok_shop":
+        try:
+            return TikTokShopAdapter(settings, store_id)
+        except IntegrationConfigError as exc:
+            # "not configured": report honestly, keep serving via demo.
+            log.warning(
+                "TikTok-Shop-Backend nicht konfiguriert (%s) — falle "
+                "auf Demo-Backend zurück.",
                 exc,
             )
             return DemoStoreAdapter(conn, store_id)
