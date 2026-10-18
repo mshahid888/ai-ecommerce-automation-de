@@ -63,3 +63,49 @@ def record_webhook_event(
         (webhook_id, topic, shop_domain),
     )
     return cur.rowcount == 1
+
+
+def verify_tiktok_shop_webhook(
+    raw_body: bytes,
+    authorization_header: str | None,
+    app_key: str | None,
+    app_secret: str | None,
+) -> bool:
+    """Verify a TikTok Shop webhook signature.
+
+    Per the official webhook overview: HMAC-SHA256 hex digest of
+    ``app_key + raw_body`` keyed with ``app_secret``, compared
+    (constant-time) against the ``authorization`` header. Returns False
+    for a missing header, missing key/secret, or a mismatch — never
+    raises. NOTE: verify against a dev app before first live use.
+    """
+    if not authorization_header or not app_key or not app_secret:
+        return False
+    digest = hmac.new(
+        app_secret.encode("utf-8"),
+        app_key.encode("utf-8") + (raw_body or b""),
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(
+        digest, authorization_header.strip().lower()
+    )
+
+
+def record_tiktok_shop_webhook_event(
+    conn: sqlite3.Connection,
+    notification_id: str,
+    topic: str | None,
+    shop_id: str | None,
+) -> bool:
+    """Record a TikTok Shop webhook delivery id for idempotency.
+
+    Returns True when this is the FIRST delivery of *notification_id*
+    (caller should process it), False when it is a duplicate
+    (acknowledge without reprocessing). The caller owns the transaction.
+    """
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO tiktok_shop_webhook_events "
+        "(notification_id, topic, shop_id) VALUES (?, ?, ?)",
+        (notification_id, topic, shop_id),
+    )
+    return cur.rowcount == 1
