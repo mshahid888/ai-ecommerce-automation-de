@@ -13,7 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
-COPY data ./data
+RUN mkdir -p ./data
 
 # SQLite demo DB lives here; mount a volume in production to persist it.
 VOLUME ["/app/data"]
